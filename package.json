@@ -7,7 +7,7 @@
   "bin": {
     "omhh": "./bin/run"
   },
-  "bugs": "https://github.com/ryansheehan/https://github.com/ryansheehan/omhh-cli/issues",
+  "bugs": "https://github.com/ryansheehan/omhh-cli/issues",
   "dependencies": {
     "@oclif/command": "^1.8.0",
     "@oclif/config": "^1.17.0",
@@ -40,7 +40,7 @@
     "/npm-shrinkwrap.json",
     "/oclif.manifest.json"
   ],
-  "homepage": "https://github.com/ryansheehan/https://github.com/ryansheehan/omhh-cli",
+  "homepage": "https://github.com/ryansheehan/omhh-cli",
   "keywords": [
     "oclif"
   ],
@@ -53,7 +53,7 @@
       "@oclif/plugin-help"
     ]
   },
-  "repository": "ryansheehan/https://github.com/ryansheehan/omhh-cli",
+  "repository": "https://github.com/ryansheehan/omhh-cli",
   "scripts": {
     "postpack": "rm -f oclif.manifest.json",
     "posttest": "eslint . --ext .ts --config .eslintrc",
