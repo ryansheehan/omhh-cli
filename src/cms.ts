@@ -40,15 +40,32 @@ export async function login(host: string, credential: Credential) {
   return res.data.jwt as JWT;
 }
 
-export async function post<T = any>(data: T, url: string, token: JWT) {
-  await axios.post(url, data, { headers: { 'Authorization': `Bearer ${token}` } });
+export async function cmsPost<T = any>(data: T, url: string, token: JWT) {
+  const res = await axios.post(url, data, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (res.status !== 200) {
+    throw new Error(res.statusText);
+  }
+  return true;
 }
 
-export async function uploadNutrients(nutrients: Nutrient[], host: string, token: JWT) {
-  const url = `${host}/nutrients`;
-  return post(nutrients, url, token);
+export async function cmsGet<T = any>(url: string, token: JWT) {
+  const res = await axios.get<T>(url, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (res.status !== 200) {
+    throw new Error(res.statusText);
+  }
+  return res.data;
 }
 
 export async function openDB(filename: string) {
   return open({ filename, mode: sqlite3.OPEN_READONLY, driver: sqlite3.cached.Database });
+}
+
+export async function uploadNutrients(nutrients: Nutrient[], host: string, token: JWT) {
+  const url = `${host}/nutrients`;
+  return cmsPost(nutrients, url, token);
+}
+
+export async function fetchNutrients(host: string, token: JWT) {
+  const url = `${host}/nutrients`;
+  return cmsGet(url, token);
 }
