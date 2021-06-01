@@ -28,8 +28,33 @@ USAGE
 <!-- usagestop -->
 # Commands
 <!-- commands -->
+* [`omhh db:push DB`](#omhh-dbpush-db)
 * [`omhh hello [FILE]`](#omhh-hello-file)
 * [`omhh help [COMMAND]`](#omhh-help-command)
+
+## `omhh db:push DB`
+
+process a sqlite file and push the contents to the cms
+
+```
+USAGE
+  $ omhh db:push DB
+
+ARGUMENTS
+  DB  file path of the nutritional db sqlite3 file
+
+OPTIONS
+  -c, --chunkSize=chunkSize  [default: 10] chunk size for an upload batch
+  -h, --help                 show CLI help
+  -p, --password=password    (required) password for authentication with the api
+  -u, --user=user            (required) username for authentication with the api
+  --cms=cms                  (required) url of the omhh-cms api
+
+EXAMPLE
+  $ omhh db push food.sqlite3
+```
+
+_See code: [src/commands/db/push.ts](https://github.com/ryansheehan/omhh-cli/blob/v0.0.1/src/commands/db/push.ts)_
 
 ## `omhh hello [FILE]`
 

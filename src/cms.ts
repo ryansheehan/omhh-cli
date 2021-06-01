@@ -1,6 +1,6 @@
 import axios from 'axios';
 import * as sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+import { Database, open } from 'sqlite';
 
 export type JWT = string;
 export interface Credential {
@@ -31,7 +31,47 @@ export interface Nutrient {
   id: number;
   name: string;
   unit_name: string;
+}
+
+export interface Food {
+  fdc_id: number;
+  data_type: string;
+  description: string;
+}
+
+export interface FoodNutrient {
+  fdc_id: number;
   nutrient_id: number;
+  amount: number;
+}
+
+export interface StrapiFoodNutrient {
+  amount: number,
+  nutrient: number;
+}
+
+export interface StrapiFood {
+  fdc_id: number,
+  description: string;
+  source: string;
+  nutrients: StrapiFoodNutrient[];
+}
+
+export interface StrapiNutrient {
+  nutrient_id: number;
+  name: string;
+  unit_name: string;
+}
+
+export interface PostNutrientResponse {
+  created: StrapiNutrient[];
+  updated: StrapiNutrient[];
+}
+
+export interface PostFoodsResponse {
+  created: StrapiFood[];
+  updated: StrapiFood[];
+  errors: string[];
 }
 
 
@@ -40,12 +80,12 @@ export async function login(host: string, credential: Credential) {
   return res.data.jwt as JWT;
 }
 
-export async function cmsPost<T = any>(data: T, url: string, token: JWT) {
-  const res = await axios.post(url, data, { headers: { 'Authorization': `Bearer ${token}` } });
+export async function cmsPost<R, T = any>(data: T, url: string, token: JWT) {
+  const res = await axios.post<R>(url, data, { headers: { 'Authorization': `Bearer ${token}` } });
   if (res.status !== 200) {
     throw new Error(res.statusText);
   }
-  return true;
+  return res.data;
 }
 
 export async function cmsGet<T = any>(url: string, token: JWT) {
@@ -62,10 +102,62 @@ export async function openDB(filename: string) {
 
 export async function uploadNutrients(nutrients: Nutrient[], host: string, token: JWT) {
   const url = `${host}/nutrients`;
-  return cmsPost(nutrients, url, token);
+  return cmsPost<PostNutrientResponse>(nutrients, url, token);
 }
 
 export async function fetchNutrients(host: string, token: JWT) {
   const url = `${host}/nutrients`;
-  return cmsGet(url, token);
+  return cmsGet<StrapiNutrient[]>(url, token);
+}
+
+export async function uploadFoods(foods: StrapiFood[], host: string, token: JWT) {
+  const url = `${host}/foods`;
+  return cmsPost<PostFoodsResponse>(foods, url, token);
+}
+
+export async function strapiFoodGenerator(db: Database<sqlite3.Database, sqlite3.Statement>, chunkSize = 10) {
+  const countQuery = await db.get<{ count: number }>('SELECT COUNT(fdc_id) as count FROM food');
+  const foodCount = countQuery?.count || 0;
+  const chunks = Math.floor(foodCount / chunkSize);
+  const lastChunkSize = foodCount - (chunks * chunkSize);
+  const foodChunks = [...new Array(chunks)].map(() => chunkSize).concat([lastChunkSize]).map((limit, i) => ({
+    limit,
+    offset: i * chunkSize
+  }));
+
+  const generator = async function* () {
+    for await (const { limit, offset } of foodChunks) {
+      const foods: StrapiFood[] = [];
+
+      const foodData = await db.all<Food[]>(`
+        SELECT * FROM food
+        ORDER BY fdc_id
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `);
+
+      for await (const { fdc_id, description, data_type: source } of foodData) {
+        const foodNutrients = await db.all<StrapiFoodNutrient[]>(`
+          SELECT nutrient_id as nutrient, amount FROM food_nutrient
+          WHERE fdc_id = ${fdc_id}
+        `);
+
+        const strapiFood: StrapiFood = {
+          fdc_id,
+          description,
+          source,
+          nutrients: foodNutrients
+        };
+
+        foods.push(strapiFood);
+      }
+
+      yield foods;
+    }
+  };
+
+  return {
+    count: foodCount,
+    generator
+  };
 }
