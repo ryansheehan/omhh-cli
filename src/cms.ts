@@ -58,6 +58,7 @@ export interface StrapiFood {
 }
 
 export interface StrapiNutrient {
+  id: number;
   nutrient_id: number;
   name: string;
   unit_name: string;
@@ -68,10 +69,21 @@ export interface PostNutrientResponse {
   updated: StrapiNutrient[];
 }
 
+export interface PostFoodProfile {
+  total: number,
+  validation: number,
+  findExisting: number,
+  findNew: number,
+  updated: number,
+  created: number,
+}
+
 export interface PostFoodsResponse {
   created: StrapiFood[];
   updated: StrapiFood[];
+  skipped: number;
   errors: string[];
+  profile: PostFoodProfile;
 }
 
 
@@ -115,7 +127,7 @@ export async function uploadFoods(foods: StrapiFood[], host: string, token: JWT)
   return cmsPost<PostFoodsResponse>(foods, url, token);
 }
 
-export async function strapiFoodGenerator(db: Database<sqlite3.Database, sqlite3.Statement>, chunkSize = 10) {
+export async function strapiFoodGenerator(db: Database<sqlite3.Database, sqlite3.Statement>, nutrientDict: Record<number, number>, chunkSize = 10) {
   const countQuery = await db.get<{ count: number }>('SELECT COUNT(fdc_id) as count FROM food');
   const foodCount = countQuery?.count || 0;
   const chunks = Math.floor(foodCount / chunkSize);
@@ -146,7 +158,7 @@ export async function strapiFoodGenerator(db: Database<sqlite3.Database, sqlite3
           fdc_id,
           description,
           source,
-          nutrients: foodNutrients
+          nutrients: foodNutrients.map(({ amount, nutrient }) => ({ amount, nutrient: nutrientDict[nutrient] }))
         };
 
         foods.push(strapiFood);
