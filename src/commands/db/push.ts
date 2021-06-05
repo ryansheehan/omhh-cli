@@ -84,8 +84,7 @@ export default class DbPush extends Command {
     });
 
     for await (const strapiFoods of generator()) {
-      const { created, updated, skipped, errors, profile } = await uploadFoods(strapiFoods, cms as string, token);
-      console.log(profile);
+      const { created, updated, skipped, errors } = await uploadFoods(strapiFoods, cms as string, token);
       createdFoods += created.length;
       updatedFoods += updated.length;
       skippedFoods += skipped;
