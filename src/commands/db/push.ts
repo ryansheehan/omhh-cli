@@ -27,7 +27,7 @@ export default class DbPush extends Command {
     batch: flags.integer({
       char: 'b',
       description: 'chunk size for an upload batch',
-      default: 10,
+      default: 50,
       required: false,
     }),
 
@@ -88,7 +88,7 @@ export default class DbPush extends Command {
       createdFoods += created.length;
       updatedFoods += updated.length;
       skippedFoods += skipped;
-      processedFoods = strapiFoods.length;
+      processedFoods += strapiFoods.length;
       foodUploadErrors.concat(errors);
       foodProgressBar.update(strapiFoods.length, {
         percentage: Math.round(processedFoods / foodCount),
