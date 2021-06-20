@@ -27,55 +27,36 @@ interface User {
   }
 }
 
-export interface Nutrient {
-  id: number;
-  name: string;
-  unit_name: string;
-}
-
-export interface Food {
-  fdc_id: number;
-  data_type: string;
-  description: string;
-}
-
-export interface FoodNutrient {
-  fdc_id: number;
-  nutrient_id: number;
-  amount: number;
-}
-
-export interface StrapiFoodNutrient {
-  amount: number,
-  nutrient: number;
-}
-
 export interface StrapiFood {
   fdc_id: number,
   description: string;
   source: string;
-  nutrients: StrapiFoodNutrient[];
+  nutrients: StrapiNutrient[];
+  portions?: StrapiPortion[];
+  brand?: StrapiBrand;
 }
 
 export interface StrapiNutrient {
-  id: number;
-  nutrient_id: number;
+  amount: number;
   name: string;
   unit_name: string;
 }
 
-export interface PostNutrientResponse {
-  created: StrapiNutrient[];
-  updated: StrapiNutrient[];
+export interface StrapiPortion {
+  amount: number;
+  unit: string;
+  gram_weight: number;
+  portion_description: string;
+  modifier: string;
 }
 
-export interface PostFoodProfile {
-  total: number,
-  validation: number,
-  findExisting: number,
-  findNew: number,
-  updated: number,
-  created: number,
+export interface StrapiBrand {
+  brand_owner: string | null;
+  brand_name: string | null;
+  subbrand_name: string | null;
+  serving_size: number;
+  serving_size_unit: string;
+  household_serving_fulltext: string;
 }
 
 export interface PostFoodsResponse {
@@ -83,7 +64,6 @@ export interface PostFoodsResponse {
   updated: StrapiFood[];
   skipped: number;
   errors: string[];
-  profile: PostFoodProfile;
 }
 
 
@@ -109,17 +89,8 @@ export async function cmsGet<T = any>(url: string, token: JWT) {
 }
 
 export async function openDB(filename: string) {
+  console.log(`filename: ${filename}`);
   return open({ filename, mode: sqlite3.OPEN_READONLY, driver: sqlite3.cached.Database });
-}
-
-export async function uploadNutrients(nutrients: Nutrient[], host: string, token: JWT) {
-  const url = `${host}/nutrients`;
-  return cmsPost<PostNutrientResponse>(nutrients, url, token);
-}
-
-export async function fetchNutrients(host: string, token: JWT) {
-  const url = `${host}/nutrients`;
-  return cmsGet<StrapiNutrient[]>(url, token);
 }
 
 export async function uploadFoods(foods: StrapiFood[], host: string, token: JWT) {
@@ -127,7 +98,7 @@ export async function uploadFoods(foods: StrapiFood[], host: string, token: JWT)
   return cmsPost<PostFoodsResponse>(foods, url, token);
 }
 
-export async function strapiFoodGenerator(db: Database<sqlite3.Database, sqlite3.Statement>, nutrientDict: Record<number, number>, chunkSize = 10) {
+export async function strapiFoodGenerator(db: Database<sqlite3.Database, sqlite3.Statement>, chunkSize = 10) {
   const countQuery = await db.get<{ count: number }>('SELECT COUNT(fdc_id) as count FROM food');
   const foodCount = countQuery?.count || 0;
   const chunks = Math.floor(foodCount / chunkSize);
@@ -141,27 +112,48 @@ export async function strapiFoodGenerator(db: Database<sqlite3.Database, sqlite3
     for await (const { limit, offset } of foodChunks) {
       const foods: StrapiFood[] = [];
 
-      const foodData = await db.all<Food[]>(`
-        SELECT * FROM food
+      const foodData = await db.all<Pick<StrapiFood, 'fdc_id' | 'description' | 'source'>[]>(`
+        SELECT fdc_id, description, data_type AS source FROM food
         ORDER BY fdc_id
         LIMIT ${limit}
         OFFSET ${offset}
       `);
 
-      for await (const { fdc_id, description, data_type: source } of foodData) {
-        const foodNutrients = await db.all<StrapiFoodNutrient[]>(`
-          SELECT nutrient_id as nutrient, amount FROM food_nutrient
-          WHERE fdc_id = ${fdc_id}
+      for await (const { fdc_id, description, source } of foodData) {
+
+        // select all the nutrients
+        const nutrients = await db.all<StrapiNutrient[]>(`
+          SELECT fn.amount, n.name, n.unit_name
+          FROM food_nutrient fn
+          INNER JOIN nutrient n ON fn.nutrient_id = n.id
+          WHERE fn.fdc_id = ${fdc_id}
         `);
 
-        const strapiFood: StrapiFood = {
-          fdc_id,
-          description,
-          source,
-          nutrients: foodNutrients.map(({ amount, nutrient }) => ({ amount, nutrient: nutrientDict[nutrient] }))
-        };
+        // select all portions
+        const portions = await db.all<StrapiPortion[]>(`
+          SELECT fp.amount, fp.portion_description, fp.modifier, fp.gram_weight, mu.name AS unit
+          FROM food_portion fp
+          INNER JOIN measure_unit mu ON fp.measure_unit_id = mu.id
+          WHERE fp.fdc_id = ${fdc_id}
+        `);
 
-        foods.push(strapiFood);
+        let brand: StrapiBrand | undefined;
+        if (source === 'branded_food') {
+          brand = await db.get<StrapiBrand>(`
+            SELECT brand_owner, brand_name, subbrand_name, serving_size, serving_size_unit, household_serving_fulltext
+            FROM branded_food
+            WHERE fdc_id = ${fdc_id}
+          `);
+        }
+
+        const food: StrapiFood = {
+          fdc_id, description, source,
+          nutrients,
+          portions,
+          brand
+        }
+
+        foods.push(food);
       }
 
       yield foods;
